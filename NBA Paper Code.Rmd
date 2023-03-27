@@ -1,0 +1,238 @@
+---
+title: "Paper"
+author: "Avani Kanungo"
+date: "6/12/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+``` {r}
+setwd("C:/Users/avani/OneDrive/Documents/Stats101A")
+
+NBA <- read.csv("NBATrain.csv", header = TRUE)
+testdata <- read.csv("NBATestNoY.csv", header = TRUE)
+
+
+
+NBA$position <-droplevels(NBA$Pos)
+
+NBA$Type <- ifelse(NBA$position == "PG" | NBA$position == "SG" | NBA$position == "PG-SG", "Guard", ifelse(NBA$position == "SF" | NBA$position == "PF", "Forward", "Center"))
+
+
+testdata$Type <- ifelse(testdata$Pos == "PG" | testdata$Pos == "SG" | testdata$Pos == "PG-SG", "Guard", ifelse(testdata$Pos == "SF" | testdata$Pos == "PF", "Forward", "Center"))
+
+NBA$Status <- ifelse(NBA$PER <= 0, "Poor", ifelse(NBA$PER > 0 & NBA$PER < 10, "Fringe", ifelse(NBA$PER <= 13 & NBA$PER > 10, "Non-Rotation", ifelse(NBA$PER > 13 & NBA$PER <= 18, "Rotation", ifelse(NBA$PER >18 & NBA$PER <= 22.5, "Average", ifelse(NBA$PER <= 35 & NBA$PER >22.5, "MVP", "GOAT" )) ))))
+
+testdata$Status <- ifelse(testdata$PER <= 0, "Poor", ifelse(testdata$PER > 0 & testdata$PER < 10, "Fringe", ifelse(testdata$PER <= 13 & testdata$PER > 10, "Non-Rotation", ifelse(testdata$PER > 13 & testdata$PER <= 18, "Rotation", ifelse(testdata$PER >18 & testdata$PER <= 22.5, "Average", ifelse(testdata$PER <= 35 & testdata$PER >22.5, "MVP", "GOAT" )) ))))
+
+
+NBA$MPG <- NBA$MP / NBA$G
+
+testdata$MPG <- testdata$MP / testdata$G
+
+NBA$GGS <- NBA$GS / NBA$G
+
+
+testdata$GGS <- testdata$GS / testdata$G
+
+
+
+NBA$TM.Status <- ifelse(NBA$TM == "TOT", "Nomad", "Others")
+testdata$TM.Status <- ifelse(testdata$TM == "TOT", "Nomad", "Others")
+
+NBA$MPG2 <- ifelse(NBA$MPG > 30, "Star", "average")
+
+testdata$MPG2 <- ifelse(testdata$MPG > 30, "Star", "average")
+
+```
+
+``` {r}
+library(alr4)
+library(ggplot2)
+library(gridExtra)
+theme(plot.title = element_text(hjust = 0.5))
+
+diagPlot<-function(model){
+ p1<-ggplot(model, aes(model$fitted, model$residuals),label=rownames(bonds)) +geom_point()
+ p1<-p1+stat_smooth(method="loess")+geom_hline(yintercept=0, col="red", linetype="dashed")
+ p1<-p1+xlab("Fitted values")+ylab("Residuals")
+ p1<-p1+ggtitle("Residual vs Fitted Plot")+theme_bw()
+
+ p2<-ggplot(model,aes(sample=rstandard(model))) + stat_qq() + stat_qq_line()
+ p2<-p2+xlab("Theoretical Quantiles")+ylab("Standardized Residuals")
+ p2<-p2+ggtitle("Normal Q-Q")
+
+ p3<-ggplot(model, aes(model$fitted, sqrt(abs(rstandard(model)))))+geom_point(na.rm=TRUE)
+ p3<-p3+stat_smooth(method="loess", na.rm = TRUE)+xlab("Fitted Value")
+ p3<-p3+ylab(expression(sqrt("|Standardized residuals|")))
+ p3<-p3+ggtitle("Scale-Location")+theme_bw()+geom_hline(yintercept=sqrt(2), col="red", linetype="dashed")
+
+ p4<-ggplot(model, aes(seq_along(cooks.distance(model)), cooks.distance(model)))+geom_bar(stat="identity", position="identity")
+ p4<-p4+xlab("Obs. Number")+ylab("Cook's distance")
+ p4<-p4+ggtitle("Cook's distance")+theme_bw()+geom_hline(yintercept=4/(length(model$residuals-2)), col="red", linetype="dashed")
+
+ p5<-ggplot(model, aes(hatvalues(model), rstandard(model)))+geom_point(aes(size=cooks.distance(model)), na.rm=TRUE)
+ p5<-p5+stat_smooth(method="loess", na.rm=TRUE)
+ p5<-p5+xlab("Leverage")+ylab("Standardized Residuals")
+ p5<-p5+ggtitle("Residual vs Leverage Plot")
+ p5<-p5+scale_size_continuous("Cook's Distance", range=c(1,5))
+ p5<-p5+theme_bw()+theme(legend.position="bottom")+geom_hline(yintercept=c(-2,2), col="red", linetype="dashed")+geom_vline(xintercept=4/(length(model$residuals)), col="blue", linetype="dashed")+ylim(-4,4)
+
+ p6<-ggplot(model, aes(hatvalues(model), cooks.distance(model)))+geom_point(na.rm=TRUE)+stat_smooth(method="loess", na.rm=TRUE)
+
+ p6<-p6+xlab("Leverage hii")+ylab("Cook's Distance")
+ p6<-p6+ggtitle("Cook's dist vs Leverage")
+ p6<-p6+geom_abline(slope=seq(0,3,0.5), color="gray", linetype="dashed")
+ p6<-p6+theme_bw()
+ return(grid.arrange(p1,p2,p3,p4,p5,p6,ncol=3))
+ }
+
+```
+
+``` {r}
+
+RunnerUp <- lm(Salary~MPG2:Age+MPG:Status+WS:MPG:Status+Type:AST.+Type:FTA+MPG2:T.DRtg+MPG2:WS, data = NBA)
+Final <- lm(Salary~Status:MPG+Age:MPG+MPG2+Age:MPG2+MPG:GGS+Type:AST. + Type:FTA+TM.Status:MPG2+WS:MPG2, data = NBA)
+
+
+length(RunnerUp$coefficients)
+c("Runner-Up Model BIC", extractAIC(RunnerUp, k=log(420)))
+c("Best Model BIC: ", extractAIC(Final, k=log(420)))
+summary(finalModel)
+dim(NBA)
+
+
+length(Final$coefficients)
+summary(Final)
+
+vif(lm(Salary~Status+MPG+Age+MPG2+GGS+Type+AST.+FTA+TM.Status+WS, data =NBA))
+
+diagPlot(Final)
+
+vif(lm(Salary~Status+MPG+Age+MPG2+Type+AST.+FTA+T.DRtg+WS, data = NBA))
+
+hii <- hatvalues(Final) > (2*(10+1))/length(NBA$Salary)
+
+table(hii)
+
+
+rii <- abs(rstandard(runnerUp)) >2
+table(rii)
+which(rii)
+hii[which(rii)]
+table(hii[which(rii)])
+table(hii,rii)
+
+x <- predict(runnerUp, data = NBA, newdata=NBA)
+
+NBA$predicted <- x
+
+ggplot(NBA, aes(x = predicted, y = Salary)) +geom_point()+labs(title = "Predicted vs Actual Points (Training Data)", x = "Predicted Values", y = "Actual Salary") +geom_smooth(method = lm, se = FALSE) 
+
+
+summary(lm(Salary~predicted, data = NBA))
+```
+
+
+
+``` {r}
+library(ggplot2)
+ggplot(NBA, aes(x=Salary)) +geom_histogram() +labs(title = "Histogram of NBA Salaries", x = "Salary ($)")
+ggplot(NBA, aes(x=Salary^0.16)) +geom_histogram() +labs(title = "Transformed Histogram of NBA Salaries (Not Used)", x= "Salary ($)")
+
+
+```
+
+
+
+``` {r}
+
+NBAnum <- read.csv("NBATrain.csv", header = TRUE)
+
+numcols <- unlist(lapply(NBAnum, is.numeric))
+numcols
+
+NBAnumeric <- NBAnum[,numcols]
+dim(NBAnumeric)
+
+library(corrplot)
+m <- cor(NBAnumeric[c(62,1:15)])
+corrplot(m, method = "circle")
+n <- cor(NBAnumeric[c(62,16:30)])
+corrplot(n, method = "circle")
+v <- cor(NBAnumeric[c(62,31:45)])
+corrplot(v, method = "circle")
+t <- cor(NBAnumeric[c(62,46:61)])
+corrplot(t, method = "circle")
+
+red <- cor(NBAnumeric[c("WS", "OWS", "DWS", "VORP", "MP", "GS", "FT", "FTA", "Salary")]) 
+corrplot(red, method = "circle")
+```
+
+
+``` {r}
+summary(lm(Salary~WS+OWS+DWS+VORP+MP+GS+FT+FTA, data = NBAnumeric))
+library(car)
+vif(lm(Salary~WS+OWS+DWS+VORP+MP+GS+FT+FTA, data = NBAnumeric))
+summary(lm(Salary~MP+GS+FT, data = NBAnumeric))
+vif(lm(Salary~MP+GS+FT, data = NBAnumeric))
+
+```
+
+
+
+
+``` {r}
+diagPlot(lm(Salary~MP+GS+FT, data = NBAnumeric))
+
+
+```
+
+
+``` {r}
+NBAcat <- NBAnum[,numcols ==FALSE]
+NBAcat
+table(NBAcat$Pos)
+
+NBAcat$Salary <- NBA$Salary
+
+
+ggplot(NBAcat, aes(x=Pos, y =Salary)) +geom_boxplot() +labs(title = "Salary by Position", x = "Position", y = "Salary")
+
+ggplot(NBA, aes(x=Type, y = Salary)) +geom_boxplot() +labs(title = "Salary by Type", x= "Type of Player", y = "salary")
+
+ggplot(NBA, aes(x = MPG)) + geom_histogram() +labs(title = "Minutes Played Per Game (Average)", x = "Minutes Played Per Game")
+
+ggplot(NBA, aes(x=MPG, y = Salary)) +geom_point()+labs(title = "Minutes Played Per Game and Salary", x = "Average Minutes Played Per Game", y = "Salary ($)")
+
+ggplot(NBA, aes(x = GGS)) + geom_histogram() +labs(title = "Ratio of Games Started to Games", x = "Games Started/Games")
+
+ggplot(NBA, aes(x=GGS, y = Salary)) +geom_point()+labs(title = "Ratio of Games Started to Games and Salary", x = "Games Started / Games", y = "Salary ($)")
+
+
+ggplot(NBA, aes(x=PER, y = Salary)) +geom_point()+labs(title = "PER and Salary", x = "PER Score", y = "Salary ($)")
+
+ggplot(NBA, aes(x = Status, y = Salary)) +geom_boxplot()+labs(title = "Salary by Status", x = "Status", y = "Salary ($)")
+
+ggplot(NBA, aes(x = MPG2, y = Salary)) +geom_boxplot()+labs(title = "Salary by MPG Star Status", x = "MPG Status", y = "Salary ($)")
+
+ggplot(NBA, aes(x = TM.Status, y = Salary)) +geom_boxplot()+labs(title = "Salary by Team Status", x = "Team Status", y = "Salary ($)")
+
+
+ggplot(NBA, aes(x=MPG, y = Salary, col = Status)) +geom_point()+labs(title = "MPG by Status and Salary", x = "Average Minutes Played Per Game", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=WS, y = Salary, col = Status)) +geom_point()+labs(title = "WS by Status and Salary", x = "Win Shares", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=AST., y = Salary, col = Type)) +geom_point()+labs(title = "Assist Percentage by Type and Salary", x = "Assist Percentage", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=FTA, y = Salary, col = Type)) +geom_point()+labs(title = "Free Throw Attempts by Type and Salary", x = "Free Throw Attempts", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=Age, y = Salary, col = MPG2)) +geom_point()+labs(title = "Age by MPG2 Status and Salary", x = "Player Age (Years)", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=T.DRtg, y = Salary, col = MPG2)) +geom_point()+labs(title = "T.DRtg by MPG2 Status and Salary", x = "Team Defensive Rating", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE)
+
+ggplot(NBA, aes(x=WS, y = Salary, col = MPG2)) +geom_point()+labs(title = "Win Shares by MPG2 Status and Salary", x = "Win Shares", y = "Salary ($)") +geom_smooth(method = lm, se = FALSE) 
+```
